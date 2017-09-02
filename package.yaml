@@ -1,0 +1,39 @@
+name: criticalmaps-locus
+version: '0.1.0.0'
+synopsis: Critical Maps to Locus Live Tracking gateway
+maintainer: Tomáš Janoušek <tomi@nomi.cz>
+copyright: (c) 2017 Tomáš Janoušek
+license: BSD3
+github: liskin/criticalmaps-locus
+
+ghc-options:
+    - -Wall
+
+library:
+    source-dirs: src
+    dependencies:
+        - aeson
+        - base
+        - blaze-builder
+        - bytestring
+        - containers
+        - data-default
+        - http-types
+        - lens
+        - lens-aeson
+        - optparse-applicative
+        - text
+        - wai
+        - wai-extra
+        - warp
+        - wreq
+        - xml
+
+executables:
+    criticalmaps-locus:
+        main: criticalmaps-locus.hs
+        dependencies: [criticalmaps-locus]
+        ghc-options:
+            - -threaded
+            - -rtsopts
+            - -with-rtsopts=-N
