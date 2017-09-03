@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module CMLocus (main) where
@@ -7,7 +8,10 @@ import Data.Monoid ((<>))
 import System.IO.Unsafe (unsafePerformIO)
 
 import Blaze.ByteString.Builder.Char.Utf8 (fromString)
+import Control.Lens ((%~), lens)
+import Control.Monad.Trans.Except (runExcept)
 import Data.Default (def)
+import Data.Map (Map)
 import Network.HTTP.Types (Query, simpleQueryToQuery, status200, status400, status404, status501)
 import Network.Wai (Middleware, Request(requestMethod), Response, pathInfo, responseBuilder)
 import Network.Wai.Handler.Warp (run)
@@ -21,9 +25,11 @@ import Network.Wai.Middleware.RequestLogger
     )
 import Network.Wai.Parse (defaultParseRequestBodyOptions, parseRequestBodyEx)
 import qualified Data.ByteString.Char8 as B (ByteString, unpack)
-import qualified Data.Map as M (toList)
+import qualified Data.Map as M (toList, filter)
 import qualified Data.Text as T (unpack)
 import qualified Data.Text.Encoding as T (decodeUtf8)
+import "hcoord" LatLng (LatLng, mkLatLng, distance)
+import "hcoord" Datum (wgs84Datum)
 
 import CMLocus.Options (Opts(..), getOpts)
 import qualified CMLocus.CriticalMaps as CM (Location(..), Request(..), Reply(..), send)
@@ -46,8 +52,13 @@ app req respond = case (requestMethod req, pathInfo req) of
     (_, _) -> respond $ responseNotImplemented
 
 handlePost :: Query -> IO Response
-handlePost = getParamsM [["lat"], ["lon"], ["device"]] $ \inp ->
-    responseKml . KML.pointsToKML . pointsFromCMReply <$> CM.send (mkCMRequest inp)
+handlePost = getParamsM [["lat"], ["lon"], ["device"]] $ \inp -> do
+    let req = mkCMRequest inp
+    let locationsLens = lens CM.locations (\rep@CM.Reply{..} l -> rep{ CM.locations = l })
+    let closeLocations' = locationsLens %~ closeLocations closeLimitKm (CM.location req)
+    responseKml . KML.pointsToKML . pointsFromCMReply . closeLocations' <$> CM.send req
+  where
+    closeLimitKm = 100
 
 mkCMRequest :: [B.ByteString] -> CM.Request
 mkCMRequest inp = req
@@ -69,6 +80,18 @@ pointsFromCMReply CM.Reply{..} =
         KML.Point{ name = T.unpack dev, desc = "", coord = mkCoord loc }
     mkCoord CM.Location{..} =
         KML.Coord{ latitude = conv latitude, longitude = conv longitude }
+
+    conv :: Int -> Double
+    conv l = fromIntegral l / 1000000
+
+closeLocations :: Double -> CM.Location -> Map a CM.Location -> Map a CM.Location
+closeLocations limit myLoc = M.filter $ \l -> distance myLoc' (locToLatLng l) < limit
+  where
+    myLoc' = locToLatLng myLoc
+
+    locToLatLng :: CM.Location -> LatLng
+    locToLatLng CM.Location{..} =
+        let Right l = runExcept $ mkLatLng (conv latitude) (conv longitude) 0 wgs84Datum in l
 
     conv :: Int -> Double
     conv l = fromIntegral l / 1000000

@@ -18,11 +18,13 @@ library:
         - bytestring
         - containers
         - data-default
+        - hcoord
         - http-types
         - lens
         - lens-aeson
         - optparse-applicative
         - text
+        - transformers
         - wai
         - wai-extra
         - warp
