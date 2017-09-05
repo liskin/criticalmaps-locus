@@ -12,6 +12,7 @@ import Control.Lens ((%~), lens)
 import Control.Monad.Trans.Except (runExcept)
 import Data.Default (def)
 import Data.Map (Map)
+import Data.Text (Text)
 import Network.HTTP.Types (Query, simpleQueryToQuery, status200, status400, status404, status501)
 import Network.Wai (Middleware, Request(requestMethod), Response, pathInfo, responseBuilder)
 import Network.Wai.Handler.Warp (run)
@@ -54,9 +55,10 @@ app req respond = case (requestMethod req, pathInfo req) of
 handlePost :: Query -> IO Response
 handlePost = getParamsM [["lat"], ["lon"], ["device"]] $ \inp -> do
     let req = mkCMRequest inp
+    let my = pointFromCMRequest req
     let locationsLens = lens CM.locations (\rep@CM.Reply{..} l -> rep{ CM.locations = l })
     let closeLocations' = locationsLens %~ closeLocations closeLimitKm (CM.location req)
-    responseKml . KML.pointsToKML . pointsFromCMReply . closeLocations' <$> CM.send req
+    responseKml . KML.pointsToKML my . pointsFromCMReply . closeLocations' <$> CM.send req
   where
     closeLimitKm = 100
 
@@ -74,7 +76,13 @@ mkCMRequest inp = req
 
 pointsFromCMReply :: CM.Reply -> [KML.Point]
 pointsFromCMReply CM.Reply{..} =
-    [ mkPoint dev loc | (dev, loc) <- M.toList locations ]
+    [ locationToPoint dev loc | (dev, loc) <- M.toList locations ]
+
+pointFromCMRequest :: CM.Request -> KML.Point
+pointFromCMRequest CM.Request{..} = locationToPoint device location
+
+locationToPoint :: Text -> CM.Location -> KML.Point
+locationToPoint = mkPoint
   where
     mkPoint dev loc =
         KML.Point{ name = T.unpack dev, desc = "", coord = mkCoord loc }
