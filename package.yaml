@@ -34,7 +34,9 @@ library:
 executables:
     criticalmaps-locus:
         main: criticalmaps-locus.hs
-        dependencies: [criticalmaps-locus]
+        dependencies:
+            - base
+            - criticalmaps-locus
         ghc-options:
             - -threaded
             - -rtsopts

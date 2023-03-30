@@ -1,4 +1,4 @@
-LTS=7
+LTS=16
 STACK=stack --stack-yaml stack-lts-$(LTS).yaml
 
 all:
